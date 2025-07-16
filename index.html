@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>MGB Radiation Oncology Site Finder</title>
+  <title>Massachusetts General Hospital Radiation Oncology Site Finder</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -31,13 +31,30 @@
     #result {
       margin: 8px;
     }
+    #legend {
+      margin: 8px;
+      background: #f9f9f9;
+      padding: 4px 8px;
+      border: 1px solid #ccc;
+    }
+    #spinner {
+      margin: 8px;
+      display: none;
+      color: #555;
+    }
   </style>
 </head>
 <body>
-  <div class="header">Massachusetts General Hospital Radiation Oncology Site Finder (Leaflet + Photon)</div>
+  <div class="header">Massachusetts General Hospital Radiation Oncology Site Finder</div>
   <input id="address" type="text" placeholder="Enter your address" style="width: 80%; margin: 8px;">
   <button onclick="findNearest()">Find Nearest Sites</button>
   <div id="map"></div>
+  <div id="legend"><strong>Legend:</strong><br>
+    <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">1</div> Closest Site<br>
+    <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">2</div> 2nd Closest Site<br>
+    <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">3</div> 3rd Closest Site
+  </div>
+  <div id="spinner">⏳ Calculating routes, please wait…</div>
   <div id="result"></div>
   <div class="footer">
     For any questions, please email <a href="mailto:zeng.johnathan@gmail.com">zeng.johnathan@gmail.com</a>
@@ -55,9 +72,8 @@
     }).addTo(map);
 
     let sites = [];
-    let markers = []; // Keep track of markers so we can clear them later
+    let markers = [];
 
-    // Load KML sites
     omnivore.kml('MGB-affiliated Rad Onc sites.kml')
       .on('ready', function() {
         this.eachLayer(function(layer) {
@@ -71,6 +87,10 @@
     function clearMarkers() {
       markers.forEach(m => map.removeLayer(m));
       markers = [];
+    }
+
+    function kmToMiles(km) {
+      return (km * 0.621371).toFixed(2);
     }
 
     function findNearest() {
@@ -91,38 +111,28 @@
           }
 
           clearMarkers();
+          document.getElementById("spinner").style.display = "block";
+          document.getElementById("result").innerHTML = "";
 
           const userLng = data.features[0].geometry.coordinates[0];
           const userLat = data.features[0].geometry.coordinates[1];
           const userLoc = L.latLng(userLat, userLng);
 
-          // Calculate distances
           const distances = sites.map(site => {
             const siteLoc = L.latLng(site.lat, site.lng);
             const dist = userLoc.distanceTo(siteLoc);
             return {...site, distance: dist};
           });
 
-          // Sort by distance and take top 3
           distances.sort((a, b) => a.distance - b.distance);
           const top3 = distances.slice(0, 3);
 
-          // Display results
-          let resultHTML = `<strong>Top 3 Closest Sites:</strong><br><ol>`;
-          top3.forEach(site => {
-            resultHTML += `<li>${site.name} — ${(site.distance / 1000).toFixed(2)} km</li>`;
-          });
-          resultHTML += `</ol>`;
-          document.getElementById("result").innerHTML = resultHTML;
-
-          // Mark user location
           const userMarker = L.marker(userLoc, {title: "You"})
             .addTo(map)
             .bindPopup("You")
             .openPopup();
           markers.push(userMarker);
 
-          // Mark top 3 sites with numbered icons
           top3.forEach((site, idx) => {
             const siteLoc = L.latLng(site.lat, site.lng);
             const marker = L.marker(siteLoc, {
@@ -138,10 +148,33 @@
           });
 
           map.panTo(userLoc);
+
+          let resultHTML = `<strong>Top 3 Closest Sites:</strong><br><ol>`;
+          Promise.all(top3.map((site, idx) => {
+            const url = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${site.lng},${site.lat}?overview=false`;
+            return fetch(url).then(res => res.json()).then(routeData => {
+              if (routeData.code === "Ok") {
+                const leg = routeData.routes[0].legs[0];
+                const distMiles = kmToMiles(leg.distance / 1000);
+                const durationMin = Math.round(leg.duration / 60);
+                resultHTML += `<li>${site.name} — ${distMiles} miles (~${durationMin} min drive)</li>`;
+              } else {
+                resultHTML += `<li>${site.name} — error fetching route</li>`;
+              }
+            }).catch(() => {
+              resultHTML += `<li>${site.name} — error fetching route</li>`;
+            });
+          })).then(() => {
+            resultHTML += `</ol>`;
+            document.getElementById("result").innerHTML = resultHTML;
+            document.getElementById("spinner").style.display = "none";
+          });
+
         })
         .catch(err => {
           console.error(err);
           alert("Error during geocoding");
+          document.getElementById("spinner").style.display = "none";
         });
     }
   </script>
