@@ -1,182 +1,117 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Massachusetts General Hospital Radiation Oncology Site Finder</title>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- … same <head> and <body> up to here … -->
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <style>
-    body {
-      font-family: Helvetica, sans-serif;
-      font-size: 14px;
-      margin: 0;
-    }
-    .header {
-      background-color: #eee;
-      font-weight: bold;
-      padding: 8px;
-      border-bottom: 1px solid #ddd;
-    }
-    .footer {
-      background-color: #eee;
-      text-align: center;
-      padding: 8px;
-      font-size: 12px;
-    }
-    #map {
-      height: 400px;
-      width: 100%;
-    }
-    #result {
-      margin: 8px;
-    }
-    #legend {
-      margin: 8px;
-      background: #f9f9f9;
-      padding: 4px 8px;
-      border: 1px solid #ccc;
-    }
-    #spinner {
-      margin: 8px;
-      display: none;
-      color: #555;
-    }
-  </style>
-</head>
-<body>
-  <div class="header">Massachusetts General Hospital Radiation Oncology Site Finder</div>
-  <input id="address" type="text" placeholder="Enter your address" style="width: 80%; margin: 8px;">
-  <button onclick="findNearest()">Find Nearest Sites</button>
-  <div id="map"></div>
-  <div id="legend"><strong>Legend:</strong><br>
-    <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">1</div> Closest Site<br>
-    <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">2</div> 2nd Closest Site<br>
-    <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">3</div> 3rd Closest Site
-  </div>
-  <div id="spinner">⏳ Calculating routes, please wait…</div>
-  <div id="result"></div>
-  <div class="footer">
-    For any questions, please email <a href="mailto:zeng.johnathan@gmail.com">zeng.johnathan@gmail.com</a>
-  </div>
+<div id="result"></div>
+<div class="footer">
+  For any questions, please email <a href="mailto:zeng.johnathan@gmail.com">zeng.johnathan@gmail.com</a>
+</div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/togeojson@0.16.0"></script>
-  <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/togeojson@0.16.0"></script>
+<script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
 
-  <script>
-    let map = L.map('map').setView([42.36, -71.06], 9);
+<script>
+let map = L.map('map').setView([42.36, -71.06], 9);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+let sites = [], markers = [], tableData = [];
 
-    let sites = [];
-    let markers = [];
+omnivore.kml('MGB-affiliated Rad Onc sites.kml')
+  .on('ready', function() {
+    this.eachLayer(function(layer) {
+      const coords = layer.getLatLng();
+      const name = layer.feature.properties.name || 'Unnamed';
+      sites.push({name: name, lat: coords.lat, lng: coords.lng});
+    });
+    this.addTo(map);
+  });
 
-    omnivore.kml('MGB-affiliated Rad Onc sites.kml')
-      .on('ready', function() {
-        this.eachLayer(function(layer) {
-          const coords = layer.getLatLng();
-          const name = layer.feature.properties.name || 'Unnamed';
-          sites.push({name: name, lat: coords.lat, lng: coords.lng});
-        });
-        this.addTo(map);
-      });
+function clearMarkers() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+}
 
-    function clearMarkers() {
-      markers.forEach(m => map.removeLayer(m));
-      markers = [];
-    }
+function kmToMiles(km) {
+  return (km * 0.621371).toFixed(2);
+}
 
-    function kmToMiles(km) {
-      return (km * 0.621371).toFixed(2);
-    }
+function findNearest() {
+  const addr = document.getElementById("address").value.trim();
+  if (!addr) { alert("Please enter an address."); return; }
 
-    function findNearest() {
-      const addr = document.getElementById("address").value.trim();
-      if (!addr) {
-        alert("Please enter an address.");
-        return;
-      }
+  fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(addr + ", Massachusetts, USA")}`)
+    .then(res => res.json()).then(data => {
+    if (!data.features?.length) { alert("Geocoding failed."); return; }
 
-      const query = addr + ", Massachusetts, USA";
+    clearMarkers();
+    document.getElementById("spinner").style.display = "block";
+    document.getElementById("result").innerHTML = "";
+    tableData = [];
 
-      fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (!data.features || data.features.length === 0) {
-            alert("Geocoding failed: address not found");
-            return;
-          }
+    const [userLng, userLat] = data.features[0].geometry.coordinates;
+    const userLoc = L.latLng(userLat, userLng);
+    const distances = sites.map(site => {
+      const siteLoc = L.latLng(site.lat, site.lng);
+      return {...site, distance: userLoc.distanceTo(siteLoc)};
+    }).sort((a,b) => a.distance-b.distance).slice(0,3);
 
-          clearMarkers();
-          document.getElementById("spinner").style.display = "block";
-          document.getElementById("result").innerHTML = "";
+    const bounds = L.latLngBounds([userLoc]);
+    markers.push(L.marker(userLoc, {
+      icon: L.divIcon({html:`<div style="background:#D32F2F;color:white;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;">Me</div>`, iconSize:[24,24],iconAnchor:[12,12]})
+    }).addTo(map).bindPopup("You").openPopup());
+    distances.forEach((site,idx)=>{
+      const siteLoc = L.latLng(site.lat, site.lng);
+      bounds.extend(siteLoc);
+      markers.push(L.marker(siteLoc, {
+        icon: L.divIcon({html:`<div style="background:#2E7D32;color:white;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;">${idx+1}</div>`, iconSize:[24,24],iconAnchor:[12,12]})
+      }).addTo(map).bindPopup(`${idx+1}: ${site.name}`));
+    });
+    map.fitBounds(bounds.pad(0.2));
 
-          const userLng = data.features[0].geometry.coordinates[0];
-          const userLat = data.features[0].geometry.coordinates[1];
-          const userLoc = L.latLng(userLat, userLng);
+    Promise.all(distances.map((site,idx)=>{
+      return fetch(`https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${site.lng},${site.lat}?overview=false`)
+      .then(r=>r.json()).then(d=>{
+        let miles="?", mins="?";
+        if(d.code==="Ok"){
+          miles=kmToMiles(d.routes[0].legs[0].distance/1000);
+          mins=Math.round(d.routes[0].legs[0].duration/60);
+        }
+        tableData.push({idx:idx+1,name:site.name,distance:miles,time:mins});
+      }).catch(()=>tableData.push({idx:idx+1,name:site.name,distance:"Error",time:"Error"}));
+    })).then(()=>{
+      renderTable();
+      document.getElementById("spinner").style.display="none";
+    });
+  });
+}
 
-          const distances = sites.map(site => {
-            const siteLoc = L.latLng(site.lat, site.lng);
-            const dist = userLoc.distanceTo(siteLoc);
-            return {...site, distance: dist};
-          });
+function renderTable(sortKey="idx",asc=true){
+  const sorted = [...tableData].sort((a,b)=>{
+    if(sortKey==="name") return asc?a.name.localeCompare(b.name):b.name.localeCompare(a.name);
+    const n1 = parseFloat(a[sortKey]); const n2 = parseFloat(b[sortKey]);
+    return asc?(n1-n2):(n2-n1);
+  });
+  let html = `<strong>Top 3 Closest Sites:</strong>
+  <table>
+  <thead><tr>
+  <th onclick="sortTable('idx')">#</th>
+  <th onclick="sortTable('name')">Site</th>
+  <th onclick="sortTable('distance')">Miles</th>
+  <th onclick="sortTable('time')">Drive Time</th>
+  </tr></thead><tbody>`;
+  sorted.forEach(row=>{
+    html+=`<tr><td>${row.idx}</td><td>${row.name}</td><td>${row.distance}</td><td>${row.time}</td></tr>`;
+  });
+  html+=`</tbody></table>`;
+  document.getElementById("result").innerHTML=html;
+}
 
-          distances.sort((a, b) => a.distance - b.distance);
-          const top3 = distances.slice(0, 3);
-
-          const userMarker = L.marker(userLoc, {title: "You"})
-            .addTo(map)
-            .bindPopup("You")
-            .openPopup();
-          markers.push(userMarker);
-
-          top3.forEach((site, idx) => {
-            const siteLoc = L.latLng(site.lat, site.lng);
-            const marker = L.marker(siteLoc, {
-              title: `${idx+1}: ${site.name}`,
-              icon: L.divIcon({
-                className: 'number-icon',
-                html: `<div style="background:#2E7D32;color:white;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;">${idx+1}</div>`,
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-              })
-            }).addTo(map).bindPopup(`${idx+1}: ${site.name}`);
-            markers.push(marker);
-          });
-
-          map.panTo(userLoc);
-
-          let resultHTML = `<strong>Top 3 Closest Sites:</strong><br><ol>`;
-          Promise.all(top3.map((site, idx) => {
-            const url = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${site.lng},${site.lat}?overview=false`;
-            return fetch(url).then(res => res.json()).then(routeData => {
-              if (routeData.code === "Ok") {
-                const leg = routeData.routes[0].legs[0];
-                const distMiles = kmToMiles(leg.distance / 1000);
-                const durationMin = Math.round(leg.duration / 60);
-                resultHTML += `<li>${site.name} — ${distMiles} miles (~${durationMin} min drive)</li>`;
-              } else {
-                resultHTML += `<li>${site.name} — error fetching route</li>`;
-              }
-            }).catch(() => {
-              resultHTML += `<li>${site.name} — error fetching route</li>`;
-            });
-          })).then(() => {
-            resultHTML += `</ol>`;
-            document.getElementById("result").innerHTML = resultHTML;
-            document.getElementById("spinner").style.display = "none";
-          });
-
-        })
-        .catch(err => {
-          console.error(err);
-          alert("Error during geocoding");
-          document.getElementById("spinner").style.display = "none";
-        });
-    }
-  </script>
+let sortState={idx:true,name:true,distance:true,time:true};
+function sortTable(key){
+  sortState[key]=!sortState[key];
+  renderTable(key,sortState[key]);
+}
+</script>
 </body>
 </html>
