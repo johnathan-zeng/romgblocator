@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head><title>Find Nearest RO Site</title></head>
+<body>
+  <input id="address" placeholder="Enter your address">
+  <button onclick="findNearest()">Search</button>
+  <div id="map" style="height:400px;width:100%;"></div>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_KEY&libraries=geometry"></script>
+<script>
+const sites = [
+  { name: 'MGH Clark Center', lat: 42.362, lng: -71.069 },
+  // ...add all sites from your map
+];
+
+let map, geocoder;
+
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat:42.36, lng:-71.06 },
+    zoom:10
+  });
+  geocoder = new google.maps.Geocoder();
+
+  sites.forEach(s => {
+    new google.maps.Marker({
+      position: {lat:s.lat, lng:s.lng},
+      map: map,
+      title: s.name
+    });
+  });
+}
+
+async function findNearest() {
+  const addr = document.getElementById("address").value;
+  geocoder.geocode({address: addr}, function(results, status) {
+    if (status !== "OK" || !results[0]) return alert('Geocode failed');
+    const userLoc = results[0].geometry.location;
+    let closest = null;
+    sites.forEach(s => {
+      const dist = google.maps.geometry.spherical.computeDistanceBetween(
+        userLoc, 
+        new google.maps.LatLng(s.lat, s.lng)
+      );
+      if (!closest || dist < closest.dist) closest = { ...s, dist };
+    });
+    alert(`Nearest is ${closest.name}, ${(closest.dist/1000).toFixed(2)} km`);
+    map.panTo(userLoc);
+    new google.maps.Marker({ position: userLoc, map: map, label:'You' });
+  });
+}
+
+window.onload = initMap;
+</script>
+</body>
+</html>
