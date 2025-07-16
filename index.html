@@ -168,7 +168,7 @@ function renderTable(sortKey="idx",asc=true){
   <th onclick="sortTable('idx')">#</th>
   <th onclick="sortTable('name')">Site</th>
   <th onclick="sortTable('distance')">Miles</th>
-  <th onclick="sortTable('time')">Drive Time</th>
+  <th onclick="sortTable('time')">Drive Time (min)</th>
   </tr></thead><tbody>`;
   sorted.forEach(row=>{
     html+=`<tr><td>${row.idx}</td><td>${row.name}</td><td>${row.distance}</td><td>${row.time}</td></tr>`;
