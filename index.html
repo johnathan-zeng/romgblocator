@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Massachusetts General Hospital Radiation Oncology Site Finder (Leaflet + Photon)</title>
+  <title>MGB Radiation Oncology Site Finder</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -55,6 +55,7 @@
     }).addTo(map);
 
     let sites = [];
+    let markers = []; // Keep track of markers so we can clear them later
 
     // Load KML sites
     omnivore.kml('MGB-affiliated Rad Onc sites.kml')
@@ -66,6 +67,11 @@
         });
         this.addTo(map);
       });
+
+    function clearMarkers() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+    }
 
     function findNearest() {
       const addr = document.getElementById("address").value.trim();
@@ -83,6 +89,9 @@
             alert("Geocoding failed: address not found");
             return;
           }
+
+          clearMarkers();
+
           const userLng = data.features[0].geometry.coordinates[0];
           const userLat = data.features[0].geometry.coordinates[1];
           const userLoc = L.latLng(userLat, userLng);
@@ -104,11 +113,30 @@
             resultHTML += `<li>${site.name} — ${(site.distance / 1000).toFixed(2)} km</li>`;
           });
           resultHTML += `</ol>`;
-
           document.getElementById("result").innerHTML = resultHTML;
 
           // Mark user location
-          L.marker(userLoc, {title: "You"}).addTo(map).bindPopup("You").openPopup();
+          const userMarker = L.marker(userLoc, {title: "You"})
+            .addTo(map)
+            .bindPopup("You")
+            .openPopup();
+          markers.push(userMarker);
+
+          // Mark top 3 sites with numbered icons
+          top3.forEach((site, idx) => {
+            const siteLoc = L.latLng(site.lat, site.lng);
+            const marker = L.marker(siteLoc, {
+              title: `${idx+1}: ${site.name}`,
+              icon: L.divIcon({
+                className: 'number-icon',
+                html: `<div style="background:#2E7D32;color:white;border-radius:50%;width:24px;height:24px;line-height:24px;text-align:center;">${idx+1}</div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+              })
+            }).addTo(map).bindPopup(`${idx+1}: ${site.name}`);
+            markers.push(marker);
+          });
+
           map.panTo(userLoc);
         })
         .catch(err => {
