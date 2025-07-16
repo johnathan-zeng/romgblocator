@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Massachusetts General Hospital Radiation Oncology Site Finder (Leaflet)</title>
+  <title>Massachusetts General Hospital Radiation Oncology Site Finder (Leaflet + Photon)</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -34,9 +34,9 @@
   </style>
 </head>
 <body>
-  <div class="header">Massachusetts General Hospital Radiation Oncology Site Finder (Leaflet)</div>
+  <div class="header">Massachusetts General Hospital Radiation Oncology Site Finder (Leaflet + Photon)</div>
   <input id="address" type="text" placeholder="Enter your address" style="width: 80%; margin: 8px;">
-  <button onclick="findNearest()">Find Nearest Site</button>
+  <button onclick="findNearest()">Find Nearest Sites</button>
   <div id="map"></div>
   <div id="result"></div>
   <div class="footer">
@@ -68,39 +68,48 @@
       });
 
     function findNearest() {
-      const addr = document.getElementById("address").value;
+      const addr = document.getElementById("address").value.trim();
+      if (!addr) {
+        alert("Please enter an address.");
+        return;
+      }
 
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}`)
+      const query = addr + ", Massachusetts, USA";
+
+      fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}`)
         .then(res => res.json())
         .then(data => {
-          if (!data || data.length === 0) {
+          if (!data.features || data.features.length === 0) {
             alert("Geocoding failed: address not found");
             return;
           }
-          const userLat = parseFloat(data[0].lat);
-          const userLng = parseFloat(data[0].lon);
+          const userLng = data.features[0].geometry.coordinates[0];
+          const userLat = data.features[0].geometry.coordinates[1];
           const userLoc = L.latLng(userLat, userLng);
 
-          let closest = null;
-          let minDist = Infinity;
-
-          sites.forEach(site => {
+          // Calculate distances
+          const distances = sites.map(site => {
             const siteLoc = L.latLng(site.lat, site.lng);
             const dist = userLoc.distanceTo(siteLoc);
-            if (dist < minDist) {
-              minDist = dist;
-              closest = site;
-            }
+            return {...site, distance: dist};
           });
 
-          if (closest) {
-            document.getElementById("result").innerHTML =
-              `<strong>Closest Site:</strong> ${closest.name}<br>` +
-              `<strong>Distance:</strong> ${(minDist / 1000).toFixed(2)} km`;
+          // Sort by distance and take top 3
+          distances.sort((a, b) => a.distance - b.distance);
+          const top3 = distances.slice(0, 3);
 
-            L.marker(userLoc, {title: "You"}).addTo(map).bindPopup("You").openPopup();
-            map.panTo(userLoc);
-          }
+          // Display results
+          let resultHTML = `<strong>Top 3 Closest Sites:</strong><br><ol>`;
+          top3.forEach(site => {
+            resultHTML += `<li>${site.name} — ${(site.distance / 1000).toFixed(2)} km</li>`;
+          });
+          resultHTML += `</ol>`;
+
+          document.getElementById("result").innerHTML = resultHTML;
+
+          // Mark user location
+          L.marker(userLoc, {title: "You"}).addTo(map).bindPopup("You").openPopup();
+          map.panTo(userLoc);
         })
         .catch(err => {
           console.error(err);
@@ -110,4 +119,3 @@
   </script>
 </body>
 </html>
-
