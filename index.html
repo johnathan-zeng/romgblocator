@@ -57,10 +57,23 @@
       cursor: pointer;
       background: #f0f0f0;
     }
+    .subtitle {
+      background-color: #f5f5f5;
+      color: #a00;
+      font-size: 12px;
+      padding: 4px 8px;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+    }
+
   </style>
 </head>
 <body>
   <div class="header">MGB Radiation Oncology Site Locator</div>
+  <div class="subtitle">
+  ⚠️ Disclaimer: Do not enter any Protected Health Information (PHI) in this tool.
+</div>
+
   <input id="address" type="text" placeholder="Enter your address" style="width: 80%; margin: 8px;">
   <button onclick="findNearest()">Find Nearest Sites</button>
   <div id="map"></div>
