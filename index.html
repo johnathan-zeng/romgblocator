@@ -235,6 +235,7 @@
 <body>
   <div class="nav">
     <div class="nav-links">
+      <a href="https://johnathan-zeng.github.io/rophonemgh/index.html">All Phone Trees</a>
       <a href="https://johnathan-zeng.github.io/rophonemgh/mgh.html">MGH Phone Tree</a>
       <a href="https://johnathan-zeng.github.io/rophonemgh/bwh.html">BWH / DFCI Phone Tree</a>
     </div>
@@ -261,7 +262,7 @@
     <div id="result"></div>
   </div>
   <div class="footer">
-    Created by Johnathan Zeng. Page hits: <span id="page-hits">...</span>
+    Created by Johnathan Zeng. Last updated: <span id="last-updated">2026-04-21</span>. Page hits: <span id="page-hits">...</span>
   </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -404,6 +405,17 @@ function setText(id, value) {
   var target = document.getElementById(id);
   if (target) target.textContent = value;
 }
+
+fetch('https://johnathan-zeng.github.io/rophonemgh/assets/last-updated.json')
+  .then(function(response) {
+    if (!response.ok) throw new Error('Failed to load last updated date');
+    return response.json();
+  })
+  .then(function(data) {
+    if (!data || !data.last_updated) return;
+    setText('last-updated', data.last_updated);
+  })
+  .catch(function() {});
 
 fetch('https://api.countapi.xyz/hit/johnathan-zeng.github.io/romgblocator')
   .then(function(response) {
