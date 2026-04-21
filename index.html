@@ -4,89 +4,264 @@
   <title>MGB Radiation Oncology Site Locator</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #ffffff;
+      --text: #000000;
+      --muted: #666666;
+      --link: #0091ff;
+      --header-bg: #eeeeee;
+      --nav-bg: #f7f7f7;
+      --row-bg: #ffffff;
+      --row-active: #dddddd;
+      --border: #dddddd;
+      --footer-text: #444444;
+      --panel-bg: #ffffff;
+      --input-bg: #ffffff;
+      --danger-bg: #fff3f3;
+      --map-filter: none;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111418;
+        --text: #f2f4f7;
+        --muted: #b5bcc5;
+        --link: #6cb8ff;
+        --header-bg: #1b2128;
+        --nav-bg: #171c22;
+        --row-bg: #111418;
+        --row-active: #242b34;
+        --border: #323944;
+        --footer-text: #c5cbd3;
+        --panel-bg: #171c22;
+        --input-bg: #111418;
+        --danger-bg: #2a1717;
+        --map-filter: brightness(0.88) contrast(1.05) saturate(0.75) hue-rotate(180deg) invert(0.92);
+      }
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #ffffff;
+      --text: #000000;
+      --muted: #666666;
+      --link: #0091ff;
+      --header-bg: #eeeeee;
+      --nav-bg: #f7f7f7;
+      --row-bg: #ffffff;
+      --row-active: #dddddd;
+      --border: #dddddd;
+      --footer-text: #444444;
+      --panel-bg: #ffffff;
+      --input-bg: #ffffff;
+      --danger-bg: #fff3f3;
+      --map-filter: none;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #111418;
+      --text: #f2f4f7;
+      --muted: #b5bcc5;
+      --link: #6cb8ff;
+      --header-bg: #1b2128;
+      --nav-bg: #171c22;
+      --row-bg: #111418;
+      --row-active: #242b34;
+      --border: #323944;
+      --footer-text: #c5cbd3;
+      --panel-bg: #171c22;
+      --input-bg: #111418;
+      --danger-bg: #2a1717;
+      --map-filter: brightness(0.88) contrast(1.05) saturate(0.75) hue-rotate(180deg) invert(0.92);
+    }
     body {
-      font-family: Helvetica, sans-serif;
+      font-family: Helvetica, "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, sans-serif;
       font-size: 14px;
       margin: 0;
+      background: var(--bg);
+      color: var(--text);
+    }
+    a {
+      color: var(--link);
+      font-weight: bold;
+      text-decoration: none;
+    }
+    .nav {
+      background-color: var(--nav-bg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-links {
+      text-align: center;
+      flex: 1;
+    }
+    .nav a {
+      margin: 0 10px;
+    }
+    .theme-toggle {
+      border: 1px solid var(--border);
+      background: var(--row-bg);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
     }
     .header {
-      background-color: #eee;
+      background-color: var(--header-bg);
       font-weight: bold;
       padding: 8px;
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
     }
     .footer {
-      background-color: #eee;
+      background-color: var(--header-bg);
       text-align: center;
       padding: 8px;
       font-size: 12px;
+      color: var(--footer-text);
+      border-top: 1px solid var(--border);
+    }
+    .footer a {
+      font-size: 12px;
+    }
+    .content {
+      padding-bottom: 8px;
+    }
+    .controls {
+      display: flex;
+      gap: 8px;
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+      background: var(--row-bg);
+      flex-wrap: wrap;
+    }
+    #address {
+      flex: 1 1 320px;
+      min-width: 220px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      background: var(--input-bg);
+      color: var(--text);
+      box-sizing: border-box;
+    }
+    #address::placeholder {
+      color: var(--muted);
+    }
+    .action-button {
+      border: 1px solid var(--border);
+      background: var(--row-bg);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
     }
     #map {
       height: 400px;
       width: 100%;
+      border-bottom: 1px solid var(--border);
+    }
+    .leaflet-tile {
+      filter: var(--map-filter);
+    }
+    .leaflet-control-attribution,
+    .leaflet-control-zoom a {
+      background: var(--panel-bg) !important;
+      color: var(--text) !important;
+      border-color: var(--border) !important;
     }
     #result {
       margin: 8px;
     }
     #legend {
       margin: 8px;
-      background: #f9f9f9;
-      padding: 4px 8px;
-      border: 1px solid #ccc;
+      background: var(--panel-bg);
+      padding: 8px;
+      border: 1px solid var(--border);
+      color: var(--text);
     }
     #spinner {
       margin: 8px;
       display: none;
-      color: #555;
+      color: var(--muted);
     }
     table {
       border-collapse: collapse;
       width: 100%;
+      background: var(--panel-bg);
     }
     table, th, td {
-      border: 1px solid #ccc;
+      border: 1px solid var(--border);
     }
     th, td {
-      padding: 4px;
+      padding: 8px;
       text-align: left;
     }
     th {
       cursor: pointer;
-      background: #f0f0f0;
+      background: var(--header-bg);
+      color: var(--text);
     }
     .subtitle {
-      background-color: #f5f5f5;
-      color: #a00;
+      background-color: var(--danger-bg);
+      color: var(--text);
       font-size: 12px;
-      padding: 4px 8px;
+      padding: 8px;
       text-align: center;
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid var(--border);
     }
-
+    .subnote {
+      padding: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+    }
   </style>
 </head>
 <body>
+  <div class="nav">
+    <div class="nav-links">
+      <a href="https://johnathan-zeng.github.io/rophonemgh/mgh.html">MGH Phone Tree</a>
+      <a href="https://johnathan-zeng.github.io/rophonemgh/bwh.html">BWH / DFCI Phone Tree</a>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" type="button">Toggle Theme</button>
+  </div>
   <div class="header">MGB Radiation Oncology Site Locator</div>
   <div class="subtitle">
   ⚠️ Disclaimer: Do not enter any Protected Health Information (PHI) in this tool.
 </div>
-
-  <input id="address" type="text" placeholder="Enter your address" style="width: 80%; margin: 8px;">
-  <button onclick="findNearest()">Find Nearest Sites</button>
-  <div id="map"></div>
-  <div id="legend"><strong>Legend:</strong><br>
-    <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">1</div> Closest Site<br>
-    <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">2</div> 2nd Closest Site<br>
-    <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">3</div> 3rd Closest Site<br>
-    <div style="display: inline-block; width: 24px; height: 24px; background: #D32F2F; color: white; border-radius: 50%; text-align: center;">Me</div> Your Location
+  <div class="subnote">Enter a Massachusetts-area address to compare the three nearest affiliated radiation oncology sites by drive distance and estimated time.</div>
+  <div class="content">
+    <div class="controls">
+      <input id="address" type="text" placeholder="Enter your address">
+      <button class="action-button" onclick="findNearest()">Find Nearest Sites</button>
+    </div>
+    <div id="map"></div>
+    <div id="legend"><strong>Legend:</strong><br>
+      <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">1</div> Closest Site<br>
+      <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">2</div> 2nd Closest Site<br>
+      <div style="display: inline-block; width: 24px; height: 24px; background: #2E7D32; color: white; border-radius: 50%; text-align: center;">3</div> 3rd Closest Site<br>
+      <div style="display: inline-block; width: 24px; height: 24px; background: #D32F2F; color: white; border-radius: 50%; text-align: center;">Me</div> Your Location
+    </div>
+    <div id="spinner">⏳ Calculating routes, please wait…</div>
+    <div id="result"></div>
   </div>
-  <div id="spinner">⏳ Calculating routes, please wait…</div>
-  <div id="result"></div>
   <div class="footer">
-    For any questions, please email <a href="mailto:zeng.johnathan@gmail.com">zeng.johnathan@gmail.com</a>
+    Created by Johnathan Zeng. Page hits: <span id="page-hits">...</span>
   </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -195,6 +370,53 @@ function sortTable(key){
   sortState[key]=!sortState[key];
   renderTable(key,sortState[key]);
 }
+
+(function() {
+  var root = document.documentElement;
+  var storageKey = 'romgblocator-theme';
+  var savedTheme = null;
+  try {
+    savedTheme = localStorage.getItem(storageKey);
+  } catch (error) {}
+  if (savedTheme === 'light' || savedTheme === 'dark') {
+    root.setAttribute('data-theme', savedTheme);
+  }
+  var toggle = document.getElementById('theme-toggle');
+  function updateLabel() {
+    if (!toggle) return;
+    var activeTheme = root.getAttribute('data-theme') || 'auto';
+    toggle.textContent = activeTheme === 'dark' ? 'Light Mode' : 'Dark Mode';
+  }
+  if (toggle) {
+    toggle.addEventListener('click', function() {
+      var nextTheme = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', nextTheme);
+      try {
+        localStorage.setItem(storageKey, nextTheme);
+      } catch (error) {}
+      updateLabel();
+    });
+  }
+  updateLabel();
+})();
+
+function setText(id, value) {
+  var target = document.getElementById(id);
+  if (target) target.textContent = value;
+}
+
+fetch('https://api.countapi.xyz/hit/johnathan-zeng.github.io/romgblocator')
+  .then(function(response) {
+    if (!response.ok) throw new Error('Failed to load page hits');
+    return response.json();
+  })
+  .then(function(data) {
+    if (!data || typeof data.value !== 'number') return;
+    setText('page-hits', String(data.value));
+  })
+  .catch(function() {
+    setText('page-hits', '--');
+  });
 </script>
 </body>
 </html>
