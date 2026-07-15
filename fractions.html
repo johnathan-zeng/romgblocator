@@ -191,6 +191,17 @@
       flex-wrap: wrap;
       margin-top: 12px;
     }
+    .toggle-row {
+      margin-top: 12px;
+    }
+    .advanced-panel {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .advanced-panel[hidden] {
+      display: none;
+    }
     .result-card {
       background: var(--success-bg);
       border: 1px solid var(--border);
@@ -308,6 +319,36 @@
       color: var(--text);
       text-decoration: line-through;
     }
+    .holiday-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px 12px;
+      margin-top: 12px;
+    }
+    .holiday-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-bg);
+    }
+    .holiday-option input[type="checkbox"] {
+      width: auto;
+      margin: 2px 0 0;
+      padding: 0;
+    }
+    .holiday-option-label {
+      display: block;
+      font-weight: bold;
+    }
+    .holiday-option-date {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
     @media (max-width: 720px) {
       .grid,
       .stats {
@@ -350,29 +391,59 @@
             <input id="start-date" type="date">
           </div>
           <div class="field">
-            <label for="end-date">End Date</label>
-            <input id="end-date" type="date">
-          </div>
-          <div class="field">
             <label for="fractions-count">Fractions</label>
             <input id="fractions-count" type="number" min="1" step="1" placeholder="44">
           </div>
           <div class="field">
-            <label for="schedule-type">Schedule</label>
-            <select id="schedule-type">
-              <option value="weekdays">Weekdays Only</option>
-              <option value="daily">Every Day</option>
-              <option value="every-other-day">Every Other Day</option>
-              <option value="every-other-weekday">Every Other Weekday</option>
+            <label for="end-date">End Date</label>
+            <input id="end-date" type="date">
+          </div>
+        </div>
+        <div class="toggle-row">
+          <button class="action-button" id="advanced-toggle" type="button">Show Schedule And Holiday Options</button>
+        </div>
+        <div id="advanced-panel" class="advanced-panel" hidden>
+          <div class="grid">
+            <div class="field">
+              <label for="schedule-type">Schedule</label>
+              <select id="schedule-type">
+                <option value="weekdays">Weekdays Only</option>
+                <option value="daily">Every Day</option>
+                <option value="every-other-day">Every Other Day</option>
+                <option value="every-other-weekday">Every Other Weekday</option>
+              </select>
+            </div>
+            <div class="field field-full">
+              <label for="first-treatment-date">First Treatment Date for Alternating Schedules</label>
+              <input id="first-treatment-date" type="date">
+            </div>
+            <div class="field field-full">
+              <label for="excluded-dates">Excluded Dates (Optional)</label>
+              <input id="excluded-dates" type="text" placeholder="2026-09-07, 2026-09-10, 2026-09-11">
+            </div>
+            <div class="field">
+            <label for="holiday-site">Holiday Schedule</label>
+            <select id="holiday-site">
+              <option value="ssh-lp">SSH / LP</option>
+              <option value="milford">Milford</option>
+              <option value="mansfield">Mansfield</option>
+              <option value="main-campus" selected>Main Campus</option>
             </select>
-          </div>
-          <div class="field field-full">
-            <label for="first-treatment-date">First Treatment Date for Alternating Schedules</label>
-            <input id="first-treatment-date" type="date">
-          </div>
-          <div class="field field-full">
-            <label for="excluded-dates">Excluded Dates (Optional)</label>
-            <input id="excluded-dates" type="text" placeholder="2026-09-07, 2026-09-10, 2026-09-11">
+            </div>
+            <div class="field">
+              <label for="holiday-year">Holiday Year</label>
+              <input id="holiday-year" type="number" min="2000" max="2100" step="1" placeholder="2026">
+            </div>
+            <div class="field field-full">
+              <label>Holiday Closures</label>
+              <div class="muted">Checked holidays are excluded from treatment dates. Defaults follow the selected site schedule.</div>
+              <div id="holiday-options" class="holiday-grid"></div>
+            </div>
+            <div class="field field-full">
+              <label>Optional Included Days</label>
+              <div class="muted">Use these to explicitly include exceptional treatment days that would otherwise be skipped by the selected schedule.</div>
+              <div id="included-options" class="holiday-grid"></div>
+            </div>
           </div>
         </div>
         <div class="actions">
@@ -470,8 +541,35 @@
     var scheduleInput = document.getElementById('schedule-type');
     var firstTreatmentInput = document.getElementById('first-treatment-date');
     var excludedDatesInput = document.getElementById('excluded-dates');
+    var holidaySiteInput = document.getElementById('holiday-site');
+    var holidayYearInput = document.getElementById('holiday-year');
+    var holidayOptions = document.getElementById('holiday-options');
+    var includedOptions = document.getElementById('included-options');
+    var advancedToggle = document.getElementById('advanced-toggle');
+    var advancedPanel = document.getElementById('advanced-panel');
     var resultPanel = document.getElementById('result-panel');
     var calendarPanel = document.getElementById('calendar-panel');
+    var holidaySelectionState = {};
+    var includedSelectionState = {};
+
+    var holidayDefinitions = [
+      { id: 'new-years', label: "New Year's Day", type: 'fixed', month: 1, day: 1, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } },
+      { id: 'mlk', label: 'MLK Day', type: 'nth-weekday', month: 1, weekday: 1, occurrence: 3, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } },
+      { id: 'presidents', label: "President's Day", type: 'nth-weekday', month: 2, weekday: 1, occurrence: 3, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } },
+      { id: 'memorial', label: 'Memorial Day', type: 'last-weekday', month: 5, weekday: 1, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } },
+      { id: 'juneteenth', label: 'Juneteenth', type: 'fixed', month: 6, day: 19, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } },
+      { id: 'independence', label: '4th of July', type: 'fixed', month: 7, day: 4, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } },
+      { id: 'labor', label: 'Labor Day', type: 'nth-weekday', month: 9, weekday: 1, occurrence: 1, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } },
+      { id: 'indigenous', label: "Indigenous People's Day", type: 'nth-weekday', month: 10, weekday: 1, occurrence: 2, closed: { 'ssh-lp': true, 'milford': false, 'mansfield': false, 'main-campus': true } },
+      { id: 'veterans', label: "Veteran's Day", type: 'fixed', month: 11, day: 11, closed: { 'ssh-lp': false, 'milford': true, 'mansfield': false, 'main-campus': false } },
+      { id: 'thanksgiving', label: 'Thanksgiving', type: 'nth-weekday', month: 11, weekday: 4, occurrence: 4, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } },
+      { id: 'friday-after-thanksgiving', label: 'Friday After Thanksgiving', type: 'relative-to-holiday', baseId: 'thanksgiving', offsetDays: 1, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } },
+      { id: 'christmas', label: 'Christmas', type: 'fixed', month: 12, day: 25, closed: { 'ssh-lp': true, 'milford': true, 'mansfield': true, 'main-campus': true } }
+    ];
+
+    var includedDayDefinitions = [
+      { id: 'sunday-before-thanksgiving', label: 'Sunday Before Thanksgiving', type: 'relative-to-holiday', baseId: 'thanksgiving', offsetDays: -4 }
+    ];
 
     function parseDate(value) {
       if (!value) return null;
@@ -505,6 +603,15 @@
       }).format(date);
     }
 
+    function formatShort(date) {
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC'
+      }).format(date);
+    }
+
     function keyForDate(date) {
       return formatForInput(date);
     }
@@ -515,6 +622,50 @@
       return next;
     }
 
+    function nthWeekdayOfMonth(year, month, weekday, occurrence) {
+      var first = new Date(Date.UTC(year, month - 1, 1));
+      var firstWeekday = first.getUTCDay();
+      var offset = (weekday - firstWeekday + 7) % 7;
+      return new Date(Date.UTC(year, month - 1, 1 + offset + ((occurrence - 1) * 7)));
+    }
+
+    function lastWeekdayOfMonth(year, month, weekday) {
+      var last = new Date(Date.UTC(year, month, 0));
+      var lastWeekday = last.getUTCDay();
+      var offset = (lastWeekday - weekday + 7) % 7;
+      return new Date(Date.UTC(year, month - 1, last.getUTCDate() - offset));
+    }
+
+    function getHolidayDate(definition, year) {
+      if (definition.type === 'fixed') {
+        return new Date(Date.UTC(year, definition.month - 1, definition.day));
+      }
+      if (definition.type === 'nth-weekday') {
+        return nthWeekdayOfMonth(year, definition.month, definition.weekday, definition.occurrence);
+      }
+      if (definition.type === 'last-weekday') {
+        return lastWeekdayOfMonth(year, definition.month, definition.weekday);
+      }
+      if (definition.type === 'relative-to-holiday') {
+        var baseDefinition = holidayDefinitions.find(function(item) {
+          return item.id === definition.baseId;
+        });
+        if (!baseDefinition) return null;
+        return addDays(getHolidayDate(baseDefinition, year), definition.offsetDays);
+      }
+      return null;
+    }
+
+    function getResolvedHolidayYear() {
+      var explicitYear = Number(holidayYearInput.value);
+      if (Number.isInteger(explicitYear) && explicitYear >= 2000 && explicitYear <= 2100) return explicitYear;
+      var startDate = parseDate(startInput.value);
+      if (startDate) return startDate.getUTCFullYear();
+      var endDate = parseDate(endInput.value);
+      if (endDate) return endDate.getUTCFullYear();
+      return 2026;
+    }
+
     function isWeekday(date) {
       var day = date.getUTCDay();
       return day !== 0 && day !== 6;
@@ -522,6 +673,7 @@
 
     function isTreatmentDate(date, config) {
       if (config.excludedDates.has(keyForDate(date))) return false;
+      if (config.includedDates.has(keyForDate(date))) return true;
       if (config.schedule === 'daily') return true;
       if (config.schedule === 'weekdays') return isWeekday(date);
       if (!config.anchorDate) return false;
@@ -586,10 +738,6 @@
       var endDate = dates[dates.length - 1];
       var summary = dates.length + ' fractions from ' + formatLong(startDate) + ' through ' + formatLong(endDate) + '.';
       var excludedSummary = dates.excludedDatesCount ? '<div class="muted" style="margin-top:8px;">Excluded dates applied: ' + dates.excludedDatesCount + '.</div>' : '';
-      var previewRows = dates.slice(0, 8).map(function(date, index) {
-        return '<tr><td>' + (index + 1) + '</td><td>' + formatLong(date) + '</td></tr>';
-      }).join('');
-      var moreText = dates.length > 8 ? '<div class="muted" style="margin-top:8px;">Showing first 8 treatment dates.</div>' : '';
 
       resultPanel.innerHTML =
         '<div class="result-card">' +
@@ -600,9 +748,7 @@
             '<div class="stat"><div class="stat-label">End Date</div><div class="stat-value">' + formatLong(endDate) + '</div></div>' +
           '</div>' +
           excludedSummary +
-        '</div>' +
-        '<table><thead><tr><th>Fraction</th><th>Date</th></tr></thead><tbody>' + previewRows + '</tbody></table>' +
-        moreText;
+        '</div>';
     }
 
     function parseExcludedDates(value) {
@@ -615,6 +761,94 @@
         if (!date) return null;
         dates.add(keyForDate(date));
       }
+      return dates;
+    }
+
+    function renderHolidayOptions() {
+      var year = getResolvedHolidayYear();
+      var site = holidaySiteInput.value;
+      holidayYearInput.value = String(year);
+      holidayOptions.innerHTML = holidayDefinitions.map(function(definition) {
+        var date = getHolidayDate(definition, year);
+        var key = definition.id + '-' + year + '-' + site;
+        var checked = Object.prototype.hasOwnProperty.call(holidaySelectionState, key)
+          ? holidaySelectionState[key]
+          : Boolean(definition.closed[site]);
+        return '' +
+          '<label class="holiday-option">' +
+            '<input type="checkbox" class="holiday-checkbox" data-holiday-id="' + definition.id + '" ' + (checked ? 'checked' : '') + '>' +
+            '<span>' +
+              '<span class="holiday-option-label">' + definition.label + '</span>' +
+              '<span class="holiday-option-date">' + formatShort(date) + '</span>' +
+            '</span>' +
+          '</label>';
+      }).join('');
+      Array.prototype.forEach.call(document.querySelectorAll('.holiday-checkbox'), function(checkbox) {
+        checkbox.addEventListener('change', function() {
+          var stateKey = checkbox.getAttribute('data-holiday-id') + '-' + year + '-' + site;
+          holidaySelectionState[stateKey] = checkbox.checked;
+        });
+      });
+    }
+
+    function renderIncludedOptions() {
+      var year = getResolvedHolidayYear();
+      includedOptions.innerHTML = includedDayDefinitions.map(function(definition) {
+        var date = getHolidayDate(definition, year);
+        var key = definition.id + '-' + year;
+        var checked = Object.prototype.hasOwnProperty.call(includedSelectionState, key)
+          ? includedSelectionState[key]
+          : definition.id === 'sunday-before-thanksgiving';
+        return '' +
+          '<label class="holiday-option">' +
+            '<input type="checkbox" class="included-checkbox" data-include-id="' + definition.id + '" ' + (checked ? 'checked' : '') + '>' +
+            '<span>' +
+              '<span class="holiday-option-label">' + definition.label + '</span>' +
+              '<span class="holiday-option-date">' + formatShort(date) + '</span>' +
+            '</span>' +
+          '</label>';
+      }).join('');
+      Array.prototype.forEach.call(document.querySelectorAll('.included-checkbox'), function(checkbox) {
+        checkbox.addEventListener('change', function() {
+          var stateKey = checkbox.getAttribute('data-include-id') + '-' + year;
+          includedSelectionState[stateKey] = checkbox.checked;
+        });
+      });
+    }
+
+    function updateAdvancedToggleLabel() {
+      advancedToggle.textContent = advancedPanel.hidden
+        ? 'Show Schedule And Holiday Options'
+        : 'Hide Schedule And Holiday Options';
+    }
+
+    function collectHolidayDates() {
+      var year = getResolvedHolidayYear();
+      var dates = new Set();
+      Array.prototype.forEach.call(document.querySelectorAll('.holiday-checkbox'), function(checkbox) {
+        if (!checkbox.checked) return;
+        var holidayId = checkbox.getAttribute('data-holiday-id');
+        var definition = holidayDefinitions.find(function(item) {
+          return item.id === holidayId;
+        });
+        if (!definition) return;
+        dates.add(keyForDate(getHolidayDate(definition, year)));
+      });
+      return dates;
+    }
+
+    function collectIncludedDates() {
+      var year = getResolvedHolidayYear();
+      var dates = new Set();
+      Array.prototype.forEach.call(document.querySelectorAll('.included-checkbox'), function(checkbox) {
+        if (!checkbox.checked) return;
+        var includeId = checkbox.getAttribute('data-include-id');
+        var definition = includedDayDefinitions.find(function(item) {
+          return item.id === includeId;
+        });
+        if (!definition) return;
+        dates.add(keyForDate(getHolidayDate(definition, year)));
+      });
       return dates;
     }
 
@@ -680,7 +914,7 @@
       var count = countInput.value ? Number(countInput.value) : null;
       var schedule = scheduleInput.value;
       var anchorDate = parseDate(firstTreatmentInput.value) || startDate;
-      var excludedDates = parseExcludedDates(excludedDatesInput.value);
+      var manualExcludedDates = parseExcludedDates(excludedDatesInput.value);
       var scheduleLabel = scheduleInput.options[scheduleInput.selectedIndex].text;
       var provided = [Boolean(startDate), Boolean(endDate), Boolean(count)].filter(Boolean).length;
 
@@ -699,7 +933,7 @@
         calendarPanel.innerHTML = '<div class="muted">Run a calculation to highlight treatment dates.</div>';
         return;
       }
-      if (excludedDates === null) {
+      if (manualExcludedDates === null) {
         resultPanel.innerHTML = '<div class="muted">Excluded dates must use YYYY-MM-DD format separated by commas.</div>';
         calendarPanel.innerHTML = '<div class="muted">Run a calculation to highlight treatment dates.</div>';
         return;
@@ -710,10 +944,17 @@
         return;
       }
 
+      var excludedDates = new Set(manualExcludedDates);
+      collectHolidayDates().forEach(function(dateKey) {
+        excludedDates.add(dateKey);
+      });
+      var includedDates = collectIncludedDates();
+
       var config = {
         schedule: schedule,
         anchorDate: anchorDate,
-        excludedDates: excludedDates
+        excludedDates: excludedDates,
+        includedDates: includedDates
       };
       var dates = [];
 
@@ -761,14 +1002,34 @@
       firstTreatmentInput.value = '';
       excludedDatesInput.value = '';
       scheduleInput.value = 'weekdays';
+      holidayYearInput.value = '2026';
+      holidaySiteInput.value = 'main-campus';
+      holidaySelectionState = {};
+      includedSelectionState = { 'sunday-before-thanksgiving-2026': true };
+      renderHolidayOptions();
+      renderIncludedOptions();
       resultPanel.innerHTML = '<div class="muted">Enter any two values and select a schedule.</div>';
       calendarPanel.innerHTML = '<div class="muted">Run a calculation to highlight treatment dates.</div>';
     });
 
-    startInput.value = '2026-07-16';
-    countInput.value = '44';
+    startInput.value = '';
+    endInput.value = '';
+    countInput.value = '';
     scheduleInput.value = 'weekdays';
-    calculate();
+    holidayYearInput.value = '2026';
+    includedSelectionState = { 'sunday-before-thanksgiving-2026': true };
+    renderHolidayOptions();
+    renderIncludedOptions();
+    updateAdvancedToggleLabel();
+    advancedToggle.addEventListener('click', function() {
+      advancedPanel.hidden = !advancedPanel.hidden;
+      updateAdvancedToggleLabel();
+    });
+    holidaySiteInput.addEventListener('change', renderHolidayOptions);
+    holidayYearInput.addEventListener('change', function() {
+      renderHolidayOptions();
+      renderIncludedOptions();
+    });
   </script>
 </body>
 </html>
